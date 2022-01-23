@@ -1,0 +1,63 @@
+@startuml
+actor Client3
+actor Client2
+actor Client1
+participant Server as "Chatroom Server"
+participant Postgres
+participant Redis
+participant IAM
+
+== Login ==
+Client1 -> IAM: Login request
+IAM -> Client1: Token
+Client1 -> Server: Websocket connection
+Server -> Redis: Store token
+
+== User to User Msgs ==
+Client1 -> Server: Send message via WS
+Server -> Postgres: Store message
+Server -> Server: Find Client2 WS connection
+Server -> Client2: Send message via WS
+
+== User to Group Msgs ==
+Client1 -> Server: Send message via WS
+Server -> Postgres: Store messages
+Server -> Postgres: Read group participants
+Server -> Server: Find Client1,2,3 WS connection
+Server -> Client1: Send message via WS
+Server -> Client2: Send message via WS
+Server -> Client3: Send message via WS
+
+== Create Chatroom With Invalid Token (Not in Redis) ==
+Client1 -> Server: Request to create a new chatroom with token
+Server -> Redis: Token lookup
+Redis -> Server: Token not found
+Server -> IAM: Validate token
+IAM -> Server: Token invalid
+Server -> Client1: 403
+
+== Create Chatroom With Invalid Token (in Redis) ==
+Client1 -> Server: Request to create a new chatroom with token
+Server -> Redis: Token lookup
+Redis -> Server: Token invalid
+Server -> Client1: 403
+
+== Create Chatroom With Valid Token (Not in Redis) ==
+Client1 -> Server: Request to create a new chatroom with token
+Server -> Redis: Token lookup
+Redis -> Server: Token not found
+Server -> IAM: Validate token
+IAM -> Server: Return user name and scope
+Server -> Redis: Add token with user name and scope
+Server -> Postgres: Add new chatroom with default user Client1
+Server -> Client1: 201
+
+== Create Chatroom With Valid Token (in Redis) ==
+Client1 -> Server: Request to create a new chatroom with token
+Server -> Redis: Token lookup
+Redis -> Server: Token valid
+Redis -> Server: Return user name and scope
+Server -> Postgres: Add new chatroom with default user Client1
+Server -> Client1: 201
+
+@enduml

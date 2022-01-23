@@ -1,0 +1,64 @@
+@startuml
+
+actor User
+
+
+database Redis{
+    node token
+}
+
+database SQL {
+    node msgs [
+        msgs
+        ===
+        id(primary key) char
+        ---
+        senderId char
+        ---
+        receiverId char
+        ---
+        type int
+        ---
+        message text
+        ---
+        timestamp time
+    ]
+    node chatrooms [
+        chatrooms
+        ===
+        id(primary key) char
+        ---
+        users array
+        ---
+        name char
+        ---
+        admin char
+    ]
+    node user [
+        user
+        ===
+        id(primary key) char
+        ---
+        name char
+    ]
+}
+
+cloud Server {
+    node server
+    interface ws as "websocket"
+    interface api as "Rest API"
+}
+
+cloud IAM 
+
+User -- ws
+User -- api
+ws -- server
+server - Redis
+
+api -- server
+server - IAM
+
+server -- SQL
+
+@enduml
