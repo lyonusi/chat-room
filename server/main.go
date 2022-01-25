@@ -18,6 +18,11 @@ func main() {
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		server.ServeWs(&hub, w, r)
 	})
+
+	http.HandleFunc("/createchatroom", func(w http.ResponseWriter, r *http.Request) {
+		server.CreateGroup(&hub, w, r)
+	})
+
 	// http.HandleFunc("/ws1", func(w http.ResponseWriter, r *http.Request) {
 	// 	serveWs1(hub, w, r)
 	// })
