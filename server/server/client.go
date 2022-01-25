@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -68,12 +67,6 @@ func NewClient(hub *Hub, conn *websocket.Conn, send chan []byte, id string) *Cli
 	}
 }
 
-// readPump pumps messages from the websocket connection to the hub.
-//
-// The application runs readPump in a per-connection goroutine. The application
-// ensures that there is at most one reader on a connection by executing all
-// reads from this goroutine.
-
 // serveWs handles websocket requests from the peer.
 func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -81,10 +74,12 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	// send := make(chan []byte, 256)
-	id := uuid.New().String()
 
-	//print log
+	// id := uuid.New().String()
+
+	id := r.Header.Get("id")
+
+	//#print log
 	fmt.Println("client.ServeWs.id = ", id)
 
 	// client := NewClient(hub, conn, send, id)
@@ -96,9 +91,9 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	registerChan := *clientHub.Register()
 	registerChan <- client
 
-	//print log
-	fmt.Println("client.ServeWs.client = ", client)
-	fmt.Println("client.ServeWs.client.hub = ", *client.Hub)
+	//#print log
+	// fmt.Println("client.ServeWs.client = ", client)
+	// fmt.Println("client.ServeWs.client.hub = ", *client.Hub)
 
 	// Allow collection of memory referenced by the caller by doing all work in
 	// new goroutines.
@@ -159,11 +154,6 @@ func (c *Client) ReadPump() {
 	}
 }
 
-// writePump pumps messages from the hub to the websocket connection.
-//
-// A goroutine running writePump is started for each connection. The
-// application ensures that there is at most one writer to a connection by
-// executing all writes from this goroutine.
 func (c *Client) WritePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
@@ -222,11 +212,3 @@ func (c *Client) SendMessageToHub(msg Msg) {
 	messageChan := *hub.Message()
 	messageChan <- msg
 }
-
-// func (c *Client) ID() string {
-// 	return c.ID
-//
-
-// func (c *Client) Send() *chan []byte {
-// 	return &c.Send
-// }

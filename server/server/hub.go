@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -26,6 +27,8 @@ type hub struct {
 
 	// Unregister requests from clients.
 	unregister chan *Client
+
+	groups map[string][]string
 }
 
 type Msg struct {
@@ -36,12 +39,17 @@ type Msg struct {
 	TimeStamp time.Time
 }
 
+var groupHC = map[string][]string{"all": []string{"aaaaaa", "bbbbbb"}, "a": []string{"aaaaaa"}, "b": []string{"bbbbbb"}}
+
 func NewHub() Hub {
+	fmt.Println("hub.NewHub")
 	return &hub{
 		message:    make(chan Msg),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		clients:    make(map[string]*Client),
+		// groups:     make(map[string][]string),
+		groups: groupHC,
 	}
 }
 
@@ -84,8 +92,29 @@ func (h *hub) Run() {
 				// fmt.Println("hub.server -> hub -> Run -> msg type = 1: ", message.SenderID, " to ", message.Receiver)
 				// fmt.Println("hub.[]byte(message.Text)= ", []byte(message.Text))
 				// fmt.Println("hub.clients[message.Receiver]= ", h.clients[message.Receiver])
+				if h.clients[message.Receiver] == nil {
+					fmt.Println("hub.Run: h.client[message.Receiver].Send: receiver is nil")
+					errMsgToSender := "Message failed to send: invalid receiver"
+					h.clients[message.SenderID].Send <- []byte(errMsgToSender)
+				} else {
+					h.clients[message.Receiver].Send <- []byte(message.Text)
+				}
+			case 2:
+				groupID := message.Receiver
 
-				h.clients[message.Receiver].Send <- []byte(message.Text)
+				//#print log
+				fmt.Println("hub.Run.msg type = 2 <group>: ", message.SenderID, " to GROUP ", groupID)
+				fmt.Println("hub.Run.msg type = 2 <group>: h.groups[groupID] = ", h.groups[groupID])
+				for _, clientID := range h.groups[groupID] {
+					//#print log
+					fmt.Println("hub.Run.msg type = 2 <group>: for loop: clientID = ", clientID)
+					select {
+					case h.clients[clientID].Send <- []byte(message.Text):
+					default:
+						close(h.clients[clientID].Send)
+						delete(h.clients, clientID)
+					}
+				}
 			default:
 				//#print log
 				// fmt.Println("server -> hub -> Run -> msg type = other : ", message.SenderID, " to ", message.Receiver, ": ", message.Text)
