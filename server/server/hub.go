@@ -2,8 +2,6 @@ package server
 
 import (
 	"fmt"
-	"net/http"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +13,7 @@ type Hub interface {
 	Unregister() *chan *Client
 	Message() *chan Msg
 	CreateGroup(clients []string) string
+	DeleteGroup(groupID string, clientID string) error
 }
 
 // Hub maintains the set of active clients and messages to the
@@ -84,7 +83,7 @@ func (h *hub) Run() {
 
 				for client := range h.clients {
 					select {
-					case h.clients[client].Send <- []byte(message.Text):
+					case h.clients[client].Send <- message:
 					default:
 						close(h.clients[client].Send)
 						delete(h.clients, client)
@@ -97,24 +96,29 @@ func (h *hub) Run() {
 				// fmt.Println("hub.clients[message.Receiver]= ", h.clients[message.Receiver])
 				if h.clients[message.Receiver] == nil {
 					fmt.Println("hub.Run: h.client[message.Receiver].Send: receiver is nil")
-					errMsgToSender := "Message failed to send: invalid receiver"
-					h.clients[message.SenderID].Send <- []byte(errMsgToSender)
+					message.Text = fmt.Sprintf("failed to send message: %v\nerror:  invalid receiver", message)
+					h.clients[message.SenderID].Send <- message
 				} else {
-					h.clients[message.Receiver].Send <- []byte(message.Text)
+					h.clients[message.Receiver].Send <- message
 				}
 			case 2:
 				groupID := message.Receiver
+				if h.groups[groupID] == nil {
+					fmt.Printf("hub.Run: h.groups[%s]: receiver is nil\n", groupID)
+					message.Text = fmt.Sprintf("failed to send message: %v\nerror:  invalid receiver\n", message)
+					h.clients[message.SenderID].Send <- message
+				} else {
+					//#print log
+					// fmt.Println("hub.Run.msg type = 2 <group>: ", message.SenderID, " to GROUP ", groupID)
+					// fmt.Println("hub.Run.msg type = 2 <group>: h.groups[groupID] = ", h.groups[groupID])
 
-				//#print log
-				// fmt.Println("hub.Run.msg type = 2 <group>: ", message.SenderID, " to GROUP ", groupID)
-				// fmt.Println("hub.Run.msg type = 2 <group>: h.groups[groupID] = ", h.groups[groupID])
-
-				for _, clientID := range h.groups[groupID] {
-					select {
-					case h.clients[clientID].Send <- []byte(message.Text):
-					default:
-						close(h.clients[clientID].Send)
-						delete(h.clients, clientID)
+					for _, clientID := range h.groups[groupID] {
+						select {
+						case h.clients[clientID].Send <- message:
+						default:
+							close(h.clients[clientID].Send)
+							delete(h.clients, clientID)
+						}
 					}
 				}
 			default:
@@ -123,7 +127,7 @@ func (h *hub) Run() {
 
 				for client := range h.clients { //#placeholder
 					select {
-					case h.clients[client].Send <- []byte(message.Text):
+					case h.clients[client].Send <- message:
 					default:
 						close(h.clients[client].Send)
 						delete(h.clients, client)
@@ -149,23 +153,19 @@ func (h *hub) CreateGroup(clients []string) string {
 	h.groups[groupID] = clients
 
 	//#print log
-	fmt.Printf("server.h *hub.CreatedGroup: h.groups[%s] = %s \n", groupID, h.groups[groupID])
+	fmt.Printf("server.hub.CreatedGroup: h.groups[%s] = %s \n", groupID, h.groups[groupID])
 	return groupID
 }
 
-// func (h *hub) CreateGroup(hub *Hub, w http.ResponseWriter, r *http.Request) string {
-func CreateGroup(hub *Hub, w http.ResponseWriter, r *http.Request) {
-
-	var newGroup []string
-	initiatorID := r.Header.Get("id")
-	newGroup = append(newGroup, initiatorID)
-	joinersString := r.FormValue("joiner")
-	joinersArray := strings.Split(joinersString, ", ")
-	newGroup = append(newGroup, joinersArray...)
-
+func (h *hub) DeleteGroup(groupID string, clientID string) error {
 	//#print log
-	// fmt.Println("server.hub.CreatedGroup: newGroup = ", newGroup)
+	fmt.Printf("server.hub.CreatedGroup: h.groups[%s] = %s \n", groupID, h.groups[groupID])
 
-	h := *hub
-	h.CreateGroup(newGroup)
+	_, ok := h.groups[groupID]
+	if ok {
+		delete(h.groups, groupID)
+		return nil
+	}
+
+	return fmt.Errorf("error: server.hub.DeleteGroup: h.groups[%s] = nil", groupID)
 }

@@ -2,10 +2,8 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 
-	"net/http"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -27,13 +25,8 @@ const (
 
 var (
 	newline = []byte{'\n'}
-	space   = []byte{' '}
+	// space   = []byte{' '}
 )
-
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-}
 
 // Client is a middleman between the websocket connection and the hub.
 type Client struct {
@@ -43,22 +36,12 @@ type Client struct {
 	Conn *websocket.Conn
 
 	// Buffered channel of outbound messages.
-	Send chan []byte
+	Send chan Msg
 
 	ID string
 }
 
-// type Client interface {
-// 	ReadPump()
-// 	WritePump()
-// 	Register(client *Client)
-// 	Unregister(client *Client)
-// 	SendMessageToHub([]byte)
-// 	ID() string
-// 	Send() *chan []byte
-// }
-
-func NewClient(hub *Hub, conn *websocket.Conn, send chan []byte, id string) *Client {
+func NewClient(hub *Hub, conn *websocket.Conn, send chan Msg, id string) *Client {
 	return &Client{
 		Hub:  hub,
 		Conn: conn,
@@ -68,38 +51,6 @@ func NewClient(hub *Hub, conn *websocket.Conn, send chan []byte, id string) *Cli
 }
 
 // serveWs handles websocket requests from the peer.
-func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	// id := uuid.New().String()
-
-	id := r.Header.Get("id")
-
-	//#print log
-	fmt.Println("client.ServeWs.id = ", id)
-
-	// client := NewClient(hub, conn, send, id)
-	// client.Register(&client)
-
-	client := &Client{Hub: hub, Conn: conn, Send: make(chan []byte, 256), ID: id}
-
-	clientHub := *client.Hub
-	registerChan := *clientHub.Register()
-	registerChan <- client
-
-	//#print log
-	// fmt.Println("client.ServeWs.client = ", client)
-	// fmt.Println("client.ServeWs.client.hub = ", *client.Hub)
-
-	// Allow collection of memory referenced by the caller by doing all work in
-	// new goroutines.
-	go client.WritePump()
-	go client.ReadPump()
-}
 
 func (c *Client) ReadPump() {
 	defer func() {
@@ -174,13 +125,14 @@ func (c *Client) WritePump() {
 			if err != nil {
 				return
 			}
-			w.Write(message)
+			w.Write([]byte(message.Text))
 
 			// Add queued chat messages to the current websocket message.
 			n := len(c.Send)
 			for i := 0; i < n; i++ {
 				w.Write(newline)
-				w.Write(<-c.Send)
+				b := <-c.Send
+				w.Write([]byte(b.Text))
 			}
 
 			if err := w.Close(); err != nil {

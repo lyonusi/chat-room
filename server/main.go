@@ -5,6 +5,7 @@
 package main
 
 import (
+	"chatroom/api"
 	"chatroom/server"
 	"log"
 	"net/http"
@@ -14,13 +15,18 @@ import (
 
 func main() {
 	hub := server.NewHub()
+	endpoint := api.NewApi(hub)
 	go hub.Run()
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		server.ServeWs(&hub, w, r)
+		endpoint.ServeWs(w, r)
 	})
 
 	http.HandleFunc("/createchatroom", func(w http.ResponseWriter, r *http.Request) {
-		server.CreateGroup(&hub, w, r)
+		endpoint.CreateGroup(w, r)
+	})
+
+	http.HandleFunc("/deletechatroom", func(w http.ResponseWriter, r *http.Request) {
+		endpoint.DeleteGroup(w, r)
 	})
 
 	// http.HandleFunc("/ws1", func(w http.ResponseWriter, r *http.Request) {
